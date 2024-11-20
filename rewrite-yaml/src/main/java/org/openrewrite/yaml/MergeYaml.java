@@ -110,6 +110,7 @@ public class MergeYaml extends Recipe {
 
             @Override
             public Yaml.Document visitDocument(Yaml.Document document, ExecutionContext ctx) {
+                System.out.println(" -------------------------- VisitDocument --------------------------");
                 if ("$".equals(key)) {
                     Yaml.Document d = document.withBlock((Yaml.Block)
                             new MergeYamlVisitor<>(document.getBlock(), yaml, Boolean.TRUE.equals(acceptTheirs), objectIdentifyingProperty)

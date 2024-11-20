@@ -24,7 +24,6 @@ import org.openrewrite.internal.ListUtils;
 import org.openrewrite.yaml.tree.Yaml;
 import org.openrewrite.yaml.tree.Yaml.Document;
 import org.openrewrite.yaml.tree.Yaml.Mapping;
-import org.openrewrite.yaml.tree.Yaml.Mapping.Entry;
 import org.openrewrite.yaml.tree.Yaml.Scalar;
 
 import java.util.ArrayList;
@@ -78,6 +77,7 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
 
     @Override
     public Yaml visitScalar(Yaml.Scalar existingScalar, P p) {
+        System.out.println(" -- VISIT SCALAR: " + this + " (existing: " + existing.getClass().getSimpleName() +  ", incoming: " + incoming.getClass().getSimpleName() + ")");
         if (existing.isScope(existingScalar) && incoming instanceof Yaml.Scalar) {
             return mergeScalar(existingScalar, (Yaml.Scalar) incoming);
         }
@@ -117,6 +117,23 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
         return super.visitMapping(existingMapping, p);
     }
 
+    /*@Override
+    public Yaml visitMapping(Yaml.Mapping existingMapping, P p) {
+        Yaml.Mapping m = existingMapping;
+
+        System.out.println(" -- VISIT MAPPING: " + this + " (in scope: " + existing.isScope(m) + ", existing: " + existing.getClass().getSimpleName() +  ", incoming: " + incoming.getClass().getSimpleName() + ")");
+
+        if (existing.isScope(m) && incoming instanceof Yaml.Mapping) {
+            m = mergeMapping(m, (Yaml.Mapping) incoming, p, getCursor());
+
+            if (getCursor().getMessage(REMOVE_PREFIX, false)) {
+                List<Yaml.Mapping.Entry> entries = ((Yaml.Mapping) getCursor().getValue()).getEntries();
+                m = m.withEntries(mapLast(m.getEntries(), it -> it.withPrefix(lineSeparator() + grabAfterFirstLineBreak(entries.get(entries.size() - 1)))));
+            }
+        }
+        return super.visitMapping(m, p);
+    }*/
+
     private static boolean keyMatches(Yaml.Mapping.@Nullable Entry e1, Yaml.Mapping.@Nullable Entry e2) {
         return e1 != null && e2 != null && e1.getKey().getValue().equals(e2.getKey().getValue());
     }
@@ -135,8 +152,11 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
     }
 
     private Mapping mergeMapping(Yaml.Mapping m1, Yaml.Mapping m2, P p, Cursor cursor) {
-        List<Yaml.Mapping.Entry> mergedEntries = map(m1.getEntries(), existingEntry -> {
-            for (Entry incomingEntry : m2.getEntries()) {
+        // TODO enable again (problem: the `keyMatches(existingEntry, incomingEntry)` is true for second run of test)
+        // Merge same key, different value together
+        List<Yaml.Mapping.Entry> mergedEntries = m1.getEntries();
+        /*List<Yaml.Mapping.Entry> mergedEntries = map(m1.getEntries(), existingEntry -> {
+            for (Yaml.Mapping.Entry incomingEntry : m2.getEntries()) {
                 if (keyMatches(existingEntry, incomingEntry)) {
                     return existingEntry.withValue((Yaml.Block)
                             new MergeYamlVisitor<>(existingEntry.getValue(), incomingEntry.getValue(), acceptTheirs, objectIdentifyingProperty, shouldAutoFormat)
@@ -144,18 +164,22 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
                 }
             }
             return existingEntry;
-        });
+        });*/
 
-        List<Entry> mutatedEntries = concatAll(mergedEntries, map(m2.getEntries(), it -> {
-            for (Entry existingEntry : m1.getEntries()) {
+        // Merge existing and new entries together
+        List<Yaml.Mapping.Entry> mutatedEntries = concatAll(mergedEntries, map(m2.getEntries(), it -> {
+            for (Yaml.Mapping.Entry existingEntry : m1.getEntries()) {
                 if (keyMatches(existingEntry, it)) {
                     return null;
                 }
             }
+            // TODO remove work around
             // workaround: autoFormat cannot handle new inserted values very well
             if (!mergedEntries.isEmpty() && it.getValue() instanceof Yaml.Scalar && hasLineBreak(mergedEntries.get(0), 2)) {
-                return it.withPrefix(lineSeparator() + grabAfterFirstLineBreak(mergedEntries.get(0)));
+                //return it.withPrefix(lineSeparator() + grabAfterFirstLineBreak(mergedEntries.get(0)));
+                System.out.println(">>");
             }
+            System.out.println(" AUTO FORMAT DUDE");
             return shouldAutoFormat ? autoFormat(it, p, cursor) : it;
         }));
 
