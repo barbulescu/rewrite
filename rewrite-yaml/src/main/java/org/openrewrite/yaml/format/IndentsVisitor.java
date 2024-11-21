@@ -19,6 +19,7 @@ import org.jspecify.annotations.Nullable;
 import org.openrewrite.Cursor;
 import org.openrewrite.Tree;
 import org.openrewrite.internal.StringUtils;
+import org.openrewrite.yaml.MultilineScalarAdded;
 import org.openrewrite.yaml.YamlIsoVisitor;
 import org.openrewrite.yaml.style.IndentsStyle;
 import org.openrewrite.yaml.tree.Yaml;
@@ -102,7 +103,7 @@ public class IndentsVisitor<P> extends YamlIsoVisitor<P> {
             }
         }
 
-        if (y instanceof Yaml.Scalar && StringUtils.hasLineBreak(((Yaml.Scalar) y).getValue())) {
+        if (y instanceof Yaml.Scalar && y.getMarkers().findFirst(MultilineScalarAdded.class).isPresent()) {
             String newValue = ((Yaml.Scalar) y).getValue().replaceAll("\\R", lineSeparator() + repeat(" ", indent));
             y = ((Yaml.Scalar) y).withValue(newValue);
         }

@@ -21,6 +21,7 @@ import org.intellij.lang.annotations.Language;
 import org.jspecify.annotations.Nullable;
 import org.openrewrite.Cursor;
 import org.openrewrite.internal.ListUtils;
+import org.openrewrite.internal.StringUtils;
 import org.openrewrite.yaml.tree.Yaml;
 import org.openrewrite.yaml.tree.Yaml.Document;
 import org.openrewrite.yaml.tree.Yaml.Mapping;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 
 import static java.lang.System.lineSeparator;
 import static org.openrewrite.Cursor.ROOT_VALUE;
+import static org.openrewrite.Tree.randomId;
 import static org.openrewrite.internal.ListUtils.*;
 import static org.openrewrite.yaml.MergeYaml.REMOVE_PREFIX;
 
@@ -152,10 +154,8 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
     }
 
     private Mapping mergeMapping(Yaml.Mapping m1, Yaml.Mapping m2, P p, Cursor cursor) {
-        // TODO enable again (problem: the `keyMatches(existingEntry, incomingEntry)` is true for second run of test)
         // Merge same key, different value together
-        List<Yaml.Mapping.Entry> mergedEntries = m1.getEntries();
-        /*List<Yaml.Mapping.Entry> mergedEntries = map(m1.getEntries(), existingEntry -> {
+        List<Yaml.Mapping.Entry> mergedEntries = map(m1.getEntries(), existingEntry -> {
             for (Yaml.Mapping.Entry incomingEntry : m2.getEntries()) {
                 if (keyMatches(existingEntry, incomingEntry)) {
                     return existingEntry.withValue((Yaml.Block)
@@ -164,7 +164,7 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
                 }
             }
             return existingEntry;
-        });*/
+        });
 
         // Merge existing and new entries together
         List<Yaml.Mapping.Entry> mutatedEntries = concatAll(mergedEntries, map(m2.getEntries(), it -> {
@@ -173,13 +173,9 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
                     return null;
                 }
             }
-            // TODO remove work around
-            // workaround: autoFormat cannot handle new inserted values very well
-            if (!mergedEntries.isEmpty() && it.getValue() instanceof Yaml.Scalar && hasLineBreak(mergedEntries.get(0), 2)) {
-                //return it.withPrefix(lineSeparator() + grabAfterFirstLineBreak(mergedEntries.get(0)));
-                System.out.println(">>");
+            if (shouldAutoFormat && it.getValue() instanceof Yaml.Scalar && StringUtils.hasLineBreak(((Scalar) it.getValue()).getValue())) {
+                it = it.withValue(it.getValue().withMarkers(it.getValue().getMarkers().add(new MultilineScalarAdded(randomId()))));
             }
-            System.out.println(" AUTO FORMAT DUDE");
             return shouldAutoFormat ? autoFormat(it, p, cursor) : it;
         }));
 
@@ -217,7 +213,7 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
                         }
                     }
                     // or retrieve it for last item from next element (could potentially be much higher in the tree)
-                    if (comment == null && hasLineBreak(entries.get(entries.size() - 1), 1)) {
+                    if (comment == null && StringUtils.hasLineBreak(entries.get(entries.size() - 1).getPrefix())) {
                         comment = grabBeforeFirstLineBreak(entries.get(entries.size() - 1));
                     }
                 }
@@ -307,10 +303,6 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
                 return s1;
             }
         }
-    }
-
-    private boolean hasLineBreak(Yaml.Mapping.Entry entry, int atLeastParts) {
-        return LINE_BREAK.matcher(entry.getPrefix()).find() && LINE_BREAK.split(entry.getPrefix()).length >= atLeastParts;
     }
 
     private String grabBeforeFirstLineBreak(Yaml.Mapping.Entry entry) {
