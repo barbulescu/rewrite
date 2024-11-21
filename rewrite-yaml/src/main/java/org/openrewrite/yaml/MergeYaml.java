@@ -113,20 +113,12 @@ public class MergeYaml extends Recipe {
 
             @Override
             public Yaml.Document visitDocument(Yaml.Document document, ExecutionContext ctx) {
-                System.out.println(" --- visit Document --- ");
-                if (document.getMarkers().findFirst(AlreadyReplaced.class).isPresent()) {
-                    return document;
-                }
-
-                System.out.println(" --- for real --- ");
-
                 if ("$".equals(key)) {
                     Yaml.Document d = document.withBlock((Yaml.Block)
                             new MergeYamlVisitor<>(document.getBlock(), yaml, Boolean.TRUE.equals(acceptTheirs), objectIdentifyingProperty)
                                     .visitNonNull(document.getBlock(), ctx, getCursor())
                     );
-                    return (getCursor().getMessage(REMOVE_PREFIX, false) ? d.withEnd(d.getEnd().withPrefix("")) : d)
-                            .withMarkers(d.getMarkers().add(new AlreadyReplaced(randomId(), "yaml-processed", null)));
+                    return getCursor().getMessage(REMOVE_PREFIX, false) ? d.withEnd(d.getEnd().withPrefix("")) : d;
                 }
                 Yaml.Document d = super.visitDocument(document, ctx);
                 if (d == document && !getCursor().getMessage(FOUND_MATCHING_ELEMENT, false)) {
@@ -146,10 +138,9 @@ public class MergeYaml extends Recipe {
                     //noinspection LanguageMismatch
                     return d.withBlock((Yaml.Block) new MergeYamlVisitor<>(d.getBlock(), snippet,
                             Boolean.TRUE.equals(acceptTheirs), objectIdentifyingProperty).visitNonNull(d.getBlock(),
-                            ctx, getCursor()))
-                            .withMarkers(d.getMarkers().add(new AlreadyReplaced(randomId(), "yaml-processed", null)));
+                            ctx, getCursor()));
                 }
-                return d.withMarkers(d.getMarkers().add(new AlreadyReplaced(randomId(), "yaml-processed", null)));
+                return d;
             }
 
             public String indent(String text) {

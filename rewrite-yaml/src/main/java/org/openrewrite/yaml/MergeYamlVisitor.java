@@ -38,6 +38,8 @@ import static java.lang.System.lineSeparator;
 import static org.openrewrite.Cursor.ROOT_VALUE;
 import static org.openrewrite.Tree.randomId;
 import static org.openrewrite.internal.ListUtils.*;
+import static org.openrewrite.internal.StringUtils.hasLineBreak;
+import static org.openrewrite.internal.StringUtils.repeat;
 import static org.openrewrite.yaml.MergeYaml.REMOVE_PREFIX;
 
 @AllArgsConstructor
@@ -79,7 +81,6 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
 
     @Override
     public Yaml visitScalar(Yaml.Scalar existingScalar, P p) {
-        System.out.println(" -- VISIT SCALAR: " + this + " (existing: " + existing.getClass().getSimpleName() +  ", incoming: " + incoming.getClass().getSimpleName() + ")");
         if (existing.isScope(existingScalar) && incoming instanceof Yaml.Scalar) {
             return mergeScalar(existingScalar, (Yaml.Scalar) incoming);
         }
@@ -158,6 +159,14 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
         List<Yaml.Mapping.Entry> mergedEntries = map(m1.getEntries(), existingEntry -> {
             for (Yaml.Mapping.Entry incomingEntry : m2.getEntries()) {
                 if (keyMatches(existingEntry, incomingEntry)) {
+                    // multiline scalar cannot be formatted automatic, apply indent from existing value
+                    if (shouldAutoFormat && incomingEntry.getValue() instanceof Yaml.Scalar && hasLineBreak(((Scalar) incomingEntry.getValue()).getValue())) {
+                        String s = grabAfterFirstLineBreak(((Yaml.Scalar) existingEntry.getValue()).getValue());
+                        int indent = s.length() - s.replaceFirst("^\\s+", "").length();
+                        String x = ((Yaml.Scalar) incomingEntry.getValue()).getValue().replaceAll("\\R *", lineSeparator() + repeat(" ", indent));
+                        incomingEntry = incomingEntry.withValue(((Scalar) incomingEntry.getValue()).withValue(x));
+                    }
+
                     return existingEntry.withValue((Yaml.Block)
                             new MergeYamlVisitor<>(existingEntry.getValue(), incomingEntry.getValue(), acceptTheirs, objectIdentifyingProperty, shouldAutoFormat)
                                     .visitNonNull(existingEntry.getValue(), p, new Cursor(cursor, existingEntry)));
@@ -173,7 +182,7 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
                     return null;
                 }
             }
-            if (shouldAutoFormat && it.getValue() instanceof Yaml.Scalar && StringUtils.hasLineBreak(((Scalar) it.getValue()).getValue())) {
+            if (shouldAutoFormat && it.getValue() instanceof Yaml.Scalar && hasLineBreak(((Scalar) it.getValue()).getValue())) {
                 it = it.withValue(it.getValue().withMarkers(it.getValue().getMarkers().add(new MultilineScalarAdded(randomId()))));
             }
             return shouldAutoFormat ? autoFormat(it, p, cursor) : it;
@@ -213,7 +222,7 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
                         }
                     }
                     // or retrieve it for last item from next element (could potentially be much higher in the tree)
-                    if (comment == null && StringUtils.hasLineBreak(entries.get(entries.size() - 1).getPrefix())) {
+                    if (comment == null && hasLineBreak(entries.get(entries.size() - 1).getPrefix())) {
                         comment = grabBeforeFirstLineBreak(entries.get(entries.size() - 1));
                     }
                 }
@@ -311,7 +320,11 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
     }
 
     private String grabAfterFirstLineBreak(Yaml.Mapping.Entry entry) {
-        String[] parts = LINE_BREAK.split(entry.getPrefix());
+        return grabAfterFirstLineBreak(entry.getPrefix());
+    }
+
+    private String grabAfterFirstLineBreak(String s) {
+        String[] parts = LINE_BREAK.split(s);
         return parts.length > 1 ? String.join(lineSeparator(), Arrays.copyOfRange(parts, 1, parts.length)) : "";
     }
 

@@ -1339,18 +1339,18 @@ class MergeYamlTest implements RewriteTest {
     void comment() {
         rewriteRun(
           spec -> spec.recipe(
-              new MergeYaml(
-                "$",
-                //language=yaml
-                """
-                  
-                    # new stuff
-                  new-property: value
-                  """,
-                false,
-                null,
-                null
-              )),
+            new MergeYaml(
+              "$",
+              //language=yaml
+              """
+                
+                  # new stuff
+                new-property: value
+                """,
+              false,
+              null,
+              null
+            )),
           yaml(
             """
               # config
@@ -1433,6 +1433,41 @@ class MergeYamlTest implements RewriteTest {
               script: |
                 #!/bin/bash
                 echo "hello"
+              """)
+        );
+    }
+
+    @Test
+    void addLiteralStyleBlockWhichDoesAlreadyExist() {
+        rewriteRun(
+          spec -> spec
+            .recipe(new MergeYaml("$.some.object",
+              // language=yaml
+              """
+                script: |
+                  #!/bin/bash
+                  echo "hellow"
+                something: else
+                """,
+              false, null,
+              null)),
+          yaml(
+            """
+              some:
+                object:
+                  with: An existing value
+                  script: |
+                    #!/bin/bash
+                    echo "hello"
+              """,
+            """
+              some:
+                object:
+                  with: An existing value
+                  script: |
+                    #!/bin/bash
+                    echo "hellow"
+                  something: else
               """)
         );
     }
