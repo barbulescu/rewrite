@@ -21,7 +21,6 @@ import org.intellij.lang.annotations.Language;
 import org.jspecify.annotations.Nullable;
 import org.openrewrite.Cursor;
 import org.openrewrite.internal.ListUtils;
-import org.openrewrite.internal.StringUtils;
 import org.openrewrite.yaml.tree.Yaml;
 import org.openrewrite.yaml.tree.Yaml.Document;
 import org.openrewrite.yaml.tree.Yaml.Mapping;
@@ -120,23 +119,6 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
         return super.visitMapping(existingMapping, p);
     }
 
-    /*@Override
-    public Yaml visitMapping(Yaml.Mapping existingMapping, P p) {
-        Yaml.Mapping m = existingMapping;
-
-        System.out.println(" -- VISIT MAPPING: " + this + " (in scope: " + existing.isScope(m) + ", existing: " + existing.getClass().getSimpleName() +  ", incoming: " + incoming.getClass().getSimpleName() + ")");
-
-        if (existing.isScope(m) && incoming instanceof Yaml.Mapping) {
-            m = mergeMapping(m, (Yaml.Mapping) incoming, p, getCursor());
-
-            if (getCursor().getMessage(REMOVE_PREFIX, false)) {
-                List<Yaml.Mapping.Entry> entries = ((Yaml.Mapping) getCursor().getValue()).getEntries();
-                m = m.withEntries(mapLast(m.getEntries(), it -> it.withPrefix(lineSeparator() + grabAfterFirstLineBreak(entries.get(entries.size() - 1)))));
-            }
-        }
-        return super.visitMapping(m, p);
-    }*/
-
     private static boolean keyMatches(Yaml.Mapping.@Nullable Entry e1, Yaml.Mapping.@Nullable Entry e2) {
         return e1 != null && e2 != null && e1.getKey().getValue().equals(e2.getKey().getValue());
     }
@@ -159,16 +141,17 @@ public class MergeYamlVisitor<P> extends YamlVisitor<P> {
         List<Yaml.Mapping.Entry> mergedEntries = map(m1.getEntries(), existingEntry -> {
             for (Yaml.Mapping.Entry incomingEntry : m2.getEntries()) {
                 if (keyMatches(existingEntry, incomingEntry)) {
-                    // multiline scalar cannot be formatted automatic, apply indent from existing value
+                    // multiline scalar cannot be formatted automatically, apply indent from existing value
                     if (shouldAutoFormat && incomingEntry.getValue() instanceof Yaml.Scalar && hasLineBreak(((Scalar) incomingEntry.getValue()).getValue())) {
                         String s = grabAfterFirstLineBreak(((Yaml.Scalar) existingEntry.getValue()).getValue());
                         int indent = s.length() - s.replaceFirst("^\\s+", "").length();
                         String x = ((Yaml.Scalar) incomingEntry.getValue()).getValue().replaceAll("\\R *", lineSeparator() + repeat(" ", indent));
                         incomingEntry = incomingEntry.withValue(((Scalar) incomingEntry.getValue()).withValue(x));
+                        //incomingEntry = incomingEntry.withValue(incomingEntry.getValue().withMarkers(incomingEntry.getValue().getMarkers().add(new MultilineScalarAdded(randomId()))));
                     }
 
                     return existingEntry.withValue((Yaml.Block)
-                            new MergeYamlVisitor<>(existingEntry.getValue(), incomingEntry.getValue(), acceptTheirs, objectIdentifyingProperty, shouldAutoFormat)
+                            new MergeYamlVisitor<>(existingEntry.getValue(), autoFormat(incomingEntry.getValue(), p), acceptTheirs, objectIdentifyingProperty, shouldAutoFormat)
                                     .visitNonNull(existingEntry.getValue(), p, new Cursor(cursor, existingEntry)));
                 }
             }
