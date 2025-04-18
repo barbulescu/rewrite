@@ -26,7 +26,7 @@ dependencies {
     testRuntimeOnly(project(":rewrite-java-17"))
     testRuntimeOnly("org.antlr:antlr4-runtime:4.13.2")
 
-    testImplementation("com.github.ajalt.clikt:clikt:3.5.0")
+    testImplementation("com.github.ajalt.clikt:clikt:5.0.3")
     testImplementation("com.squareup:javapoet:1.13.0")
     testImplementation("com.google.testing.compile:compile-testing:0.+")
 }
